@@ -1,0 +1,5 @@
+Flask
+firebase_admin
+geopy
+gunicorn
+pandas
