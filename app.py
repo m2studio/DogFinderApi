@@ -1,8 +1,12 @@
 import os
 from flask import Flask, flash, request, render_template
 from datetime import datetime
+import pandas as pd
 import pickle
 import random
+import json 
+import geopy
+from geopy import distance
 
 import firebase_admin
 from firebase_admin import credentials
@@ -10,6 +14,8 @@ from firebase_admin import firestore
 
 import api_key
 import firestore_collection
+
+RADIUS = 10 ## unit is KM
 
 cred = credentials.Certificate('serviceAccountKey.json')
 firebase_admin.initialize_app(cred)
@@ -159,8 +165,9 @@ def lostpreregister_api():
     
     add_dog_to_lost(customer_id, dog)
 
-    #TODO : matching, then return top 5 dogs
-    return f'successfully declared dog : {dog_name} as lost', 200
+    matchDf = scan_dogs(dog, firestore_collection.LOST_DOGS)
+    result = matchDf.to_dict('records')
+    return json.dumps(result, indent=4), 200
 
 ## for the case we don't do the pre-register before
 @app.route('/lost-register', methods = ['POST'])
@@ -230,8 +237,9 @@ def lost_api():
 
     add_dog_to_lost(customer_id, dog)
 
-    #TODO : matching, then return top 5 dogs
-    return f'successfully declared dog : {dog_name} as lost', 200
+    matchDf = scan_dogs(dog, firestore_collection.FOUND_DOGS)
+    result = matchDf.to_dict('records')
+    return json.dumps(result, indent=4), 200
 
 @app.route('/found', methods = ['POST'])
 def found_api():
@@ -280,8 +288,9 @@ def found_api():
     }
     db.collection(firestore_collection.FOUND).document(customer_id).collection(firestore_collection.FOUND_DOGS).add(dog)
 
-    #TODO : matching, then return top 5 dogs
-    return f'successfully registered a stray dog ({breed})', 200
+    matchDf = scan_dogs(dog, firestore_collection.LOST_DOGS)
+    result = matchDf.to_dict('records')
+    return json.dumps(result, indent=4), 200
 
 #TODO: PREM
 def predict_breed(image):
@@ -290,38 +299,86 @@ def predict_breed(image):
     return breeds[index]
 
 # for debugging/testing code purpose
-@app.route('/test')
+@app.route('/test', methods = ['POST'])
 def test_api():
-    docs = db.collection_group(firestore_collection.LOST_DOGS).where('breed', '==', 'beagle').get()
-    print(f'there are {len(docs)} dogs in system')
-    for doc in docs:
-        print(f'{doc.id} => {doc.to_dict()}')
+    request_data = request.get_json()
+    
+    image = None   
+    breed = None
+    lat = None
+    long = None
+    location = None
 
-    return 'OK', 200
+    if request_data:
+        if api_key.IMAGE in request_data:
+            image = request_data[api_key.IMAGE]
+        else:
+            return f'{api_key.IMAGE} was not found', 400        
 
-#TODO
-def match():
-    return ''
+        if api_key.BREED in request_data:
+            breed = request_data[api_key.BREED]
+        else:
+            return f'{api_key.BREED} was not found', 400
 
-#TODO call this method after registering found
-def scan_lost(breed):
-    docs = db.collection_group(firestore_collection.LOST_DOGS).where('breed', '==', breed).get()
-    print(f'there are {len(docs)} {breed} as lost dogs in system')
-    for doc in docs:
-        print(f'{doc.id} => {doc.to_dict()}')
+        if api_key.LOCATION in request_data:
+            lat = request_data[api_key.LOCATION]['lat']
+            long = request_data[api_key.LOCATION]['long']
+            location= firestore.GeoPoint(lat, long)            
+        else:
+            return f'{api_key.LOCATION} was not found', 400
 
-    #TODO: need to return as dataframe and filter only the ones in radius
-    return docs
+    dog = {
+        'breed': breed,
+        'image': image,
+        'location': location,
+    }
+    matchDf = scan_dogs(dog, firestore_collection.FOUND_DOGS)
+    result = matchDf.to_dict('records')
+    return json.dumps(result, indent=4), 200
 
-#TODO call this method after registering lost
-def scan_found(breed):
-    docs = db.collection_group(firestore_collection.FOUND_DOGS).where('breed', '==', breed).get()
-    print(f'there are {len(docs)} {breed} as found dogs in system')
-    for doc in docs:
-        print(f'{doc.id} => {doc.to_dict()}')
+# TODO : PREM
+# need to return top 5 dog that match the given dog parameter
+def match_dogs(dog, df):
+#    example dataframe
+#          dog_id            breed             image            distance
+# 0  I5uYoz6psULpitPvHb0z  chow chow  s3-image-url-from-botnoi  5.409976
+# 1  0nLFAazd6Lht41i5bJVB  chow chow  s3-image-url-from-botnoi  2.251150
+    return df
 
-    #TODO: need to return as dataframe and filter only the ones in radius
-    return docs
+def scan_dogs(dog, collection_name):
+    print(dog)
+    breed = dog['breed']
+    docs = db.collection_group(collection_name).where('breed', '==', breed).get()
+    print(f'there are {len(docs)} {breed} dogs in system')
+    location = dog['location']
+    lat = location.latitude
+    long = location.longitude
+    source = (lat, long)
+    dataset = []
+    for doc in docs:        
+        data = doc.to_dict()
+        print(f'{doc.id} => {data}')
+        destination = (data['location'].latitude, data['location'].longitude)
+        dist = distance.distance(source, destination).km # get distance between 2 geo points
+        print(f'distance between dogs is {dist} km.')
+
+        if (dist < RADIUS):
+            row = {
+                'dog_id': doc.id,
+                'breed': data['breed'],
+                'image': data['image'],
+                'distance': dist,
+            }
+            if 'name' in data:
+                row['name'] = data['name']
+            dataset.append(row)
+
+    pd.set_option('display.width', 120)
+    df = pd.DataFrame(dataset)
+    print('printing data frame')
+    print(df)
+    matchDf = match_dogs(dog, df)
+    return matchDf
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
