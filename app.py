@@ -308,6 +308,7 @@ def test_api():
     lat = None
     long = None
     location = None
+    case = None
 
     if request_data:
         if api_key.IMAGE in request_data:
@@ -327,12 +328,25 @@ def test_api():
         else:
             return f'{api_key.LOCATION} was not found', 400
 
+        if 'case' in request_data:
+            case = request_data['case']
+        else:
+            return f'case was not found', 400  
+
     dog = {
         'breed': breed,
         'image': image,
         'location': location,
     }
-    matchDf = scan_dogs(dog, firestore_collection.FOUND_DOGS)
+    collection_group = None
+    if case == 'lost':
+        collection_group = firestore_collection.LOST_DOGS
+    elif case == 'found':
+        collection_group = firestore_collection.FOUND_DOGS
+    else:
+        return f'test API does not support case : {case}, it MUST be either lost or found', 400
+
+    matchDf = scan_dogs(dog, collection_group)
     result = matchDf.to_dict('records')
     return json.dumps(result, indent=4), 200
 
