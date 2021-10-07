@@ -15,7 +15,7 @@ from firebase_admin import firestore
 import api_key
 import firestore_collection
 
-RADIUS = 10 ## unit is KM
+RADIUS = 5 ## unit is KM
 
 cred = credentials.Certificate('serviceAccountKey.json')
 firebase_admin.initialize_app(cred)
@@ -33,19 +33,37 @@ def register_api():
     request_data = request.get_json()
 
     customer_id = None
+    owner_name = None
     display_name = None
     image = None
     dog_name = None
-    breed = None
-    lat = None
-    long = None
-    location = None
+    dog_age = None
+    dog_gender = None
+    breed = None    
 
     if request_data:
         if api_key.CUSTOMER_ID in request_data:
             customer_id = request_data[api_key.CUSTOMER_ID]
         else:
             return f'{api_key.CUSTOMER_ID} was not found', 400
+
+        if api_key.OWNER_NAME in request_data:
+            owner_name = request_data[api_key.OWNER_NAME]
+        else:
+            return f'{api_key.OWNER_NAME} was not found', 400
+
+        if api_key.DOG_AGE in request_data:
+            r_dog_age = request_data[api_key.DOG_AGE]
+            l_ages = r_dog_age.split('-')
+            dog_age = (int(l_ages[0]) * 12) + int(l_ages[1])
+            print(f'dog age : {dog_age}')
+        else:
+            return f'{api_key.DOG_AGE} was not found', 400
+
+        if api_key.DOG_GENDER in request_data:
+            dog_gender = request_data[api_key.DOG_GENDER]
+        else:
+            return f'{api_key.DOG_GENDER} was not found', 400
 
         if api_key.DISPLAY_NAME in request_data:
             display_name = request_data[api_key.DISPLAY_NAME]
@@ -60,20 +78,26 @@ def register_api():
         else:
             return f'{api_key.DOG} was not found', 400
 
-        if api_key.BREED in request_data:
-            breed = request_data[api_key.BREED]
+        if api_key.BREED in request_data:            
+            raw_breed = request_data[api_key.BREED]
+            breed = map_breed(raw_breed)
+            if breed == 'error':
+                return f'{raw_breed} does not support, please check spelling', 400
+
+            print(f'English breed : {breed}')
+            thai_breed = map_breed(breed, True)
+            print(f'Thai breed : {thai_breed}')
+            type_breed = type(thai_breed)
+            print(f'type of thai breed : {type_breed}')
         else:
             return f'{api_key.BREED} was not found', 400
-
-        if api_key.LOCATION in request_data:
-            lat = request_data[api_key.LOCATION]['lat']
-            long = request_data[api_key.LOCATION]['long']
-            location= firestore.GeoPoint(lat, long)            
-        else:
-            return f'{api_key.LOCATION} was not found', 400
-
+        
+    customer = {
+        'display_name': display_name,
+        'owner_name': owner_name,
+    }
     print(request_data)
-    db.collection(firestore_collection.REGISTER).document(customer_id).set({'display_name': display_name}) ## add or update the user profile   
+    db.collection(firestore_collection.REGISTER).document(customer_id).set(customer) ## add or update the user profile   
     dogs = db.collection(firestore_collection.REGISTER).document(customer_id).collection(firestore_collection.REGISTERD_DOGS).where('name', '==', dog_name).get()
     print(f'dogs.length : {len(dogs)}')
 
@@ -85,7 +109,9 @@ def register_api():
             'name': dog_name,
             'breed': breed,
             'image': image,
-            'location': location,
+            'age': dog_age,
+            'gender': dog_gender,
+            #'location': location,
             'is_informed': False,
             'datetime': datetime.now(),
     })
@@ -105,44 +131,70 @@ def get_dogs_api(customer_id):
     for doc in docs:
         data = doc.to_dict()        
         print(f'{doc.id} => {data}')
-        # location = doc.get('location')
-        location = data['location']
-        print(f'lat => {location.latitude}')
-        print(f'long => {location.longitude}')
+        # location = data['location']
+        # print(f'lat => {location.latitude}')
+        # print(f'long => {location.longitude}')
         results.append({
             "dog_id": doc.id,
             "name": data['name'],
             "breed": data['breed'],
             "image": data['image'],
-            "lat": location.latitude,
-            "long": location.longitude,
+            "age": data['age'],
+            "gender": data['gender'],
+            # "lat": location.latitude,
+            # "long": location.longitude,
         })
 
     return {'status': 'OK', 'results': results}, 200
 
-def add_dog_to_lost(customer_id, dog):
-    db.collection(firestore_collection.LOST).document(customer_id).collection(firestore_collection.LOST_DOGS).add({
+def add_dog_to_lost(customer, dog):
+    owner_doc = db.collection(firestore_collection.REGISTER).document(customer['customer_id']) 
+    db.collection(firestore_collection.LOST).document(customer['customer_id']).collection(firestore_collection.LOST_DOGS).add({
         'name': dog['name'],
         'breed': dog['breed'],
         'image': dog['image'],
         'location': dog['location'],
+        'age': dog['age'],
+        'gender': dog['gender'],
         'is_found': False,
         'datetime': datetime.now(),
+        'owner': owner_doc,
     })
+
+    # remove customer id as we don't need this field
+    del customer['customer_id']
+    # update customer info in register table
+    owner_doc.update(customer)
 
 @app.route('/lost-preregister', methods = ['POST'])
 def lostpreregister_api():
     request_data = request.get_json()
     customer_id = None
+    phone = None
     dog_id = None
+    location = None
+    lat = None
+    long = None
+
 
     if request_data:
         if api_key.CUSTOMER_ID in request_data:
             customer_id = request_data[api_key.CUSTOMER_ID]
         else:
             return f'{api_key.CUSTOMER_ID} was not found', 400
+        
+        if api_key.PHONE in request_data:
+            phone = request_data[api_key.PHONE]
+        else:
+            return f'{api_key.PHONE} was not found', 400
 
-    if request_data:
+        if api_key.LOCATION in request_data:
+            lat = request_data[api_key.LOCATION]['lat']
+            long = request_data[api_key.LOCATION]['long']
+            location= firestore.GeoPoint(lat, long)            
+        else:
+            return f'{api_key.LOCATION} was not found', 400
+
         if api_key.DOG_ID in request_data:
             dog_id = request_data[api_key.DOG_ID]
         else:
@@ -155,7 +207,7 @@ def lostpreregister_api():
 
     print(doc.to_dict())
 
-    dog = doc.to_dict()
+    dog = doc.to_dict()    
     dog_name = dog['name']
     dogs = db.collection(firestore_collection.LOST).document(customer_id).collection(firestore_collection.LOST_DOGS).where('name', '==', dog_name).where('is_found', '==', False).get()
     print(f'dogs.length : {len(dogs)}')
@@ -163,9 +215,14 @@ def lostpreregister_api():
     if len(dogs) > 0:
         return f'{dog_name} was already declared as lost', 200
     
-    add_dog_to_lost(customer_id, dog)
+    dog['location'] = location
+    customer = {
+        'customer_id': customer_id,
+        'phone': phone,
+    }
+    add_dog_to_lost(customer, dog)
 
-    matchDf = scan_dogs(dog, firestore_collection.LOST_DOGS)
+    matchDf = scan_dogs(dog, firestore_collection.FOUND_DOGS)
     result = matchDf.to_dict('records')
     return json.dumps(result, indent=4), 200
 
@@ -175,9 +232,12 @@ def lost_api():
     request_data = request.get_json()
 
     customer_id = None
+    owner_name = None
     display_name = None
     image = None
     dog_name = None
+    dog_gender = None
+    dog_age = None
     breed = None
     lat = None
     long = None
@@ -188,6 +248,16 @@ def lost_api():
             customer_id = request_data[api_key.CUSTOMER_ID]
         else:
             return f'{api_key.CUSTOMER_ID} was not found', 400
+
+        if api_key.OWNER_NAME in request_data:
+            owner_name = request_data[api_key.OWNER_NAME]
+        else:
+            return f'{api_key.OWNER_NAME} was not found', 400
+
+        if api_key.PHONE in request_data:
+            phone = request_data[api_key.PHONE]
+        else:
+            return f'{api_key.PHONE} was not found', 400
 
         if api_key.DISPLAY_NAME in request_data:
             display_name = request_data[api_key.DISPLAY_NAME]
@@ -202,8 +272,24 @@ def lost_api():
         else:
             return f'{api_key.DOG} was not found', 400
 
+        if api_key.DOG_GENDER in request_data:
+            dog_gender = request_data[api_key.DOG_GENDER]
+        else:
+            return f'{api_key.DOG_GENDER} was not found', 400
+
+        if api_key.DOG_AGE in request_data:
+            r_dog_age = request_data[api_key.DOG_AGE]
+            l_ages = r_dog_age.split('-')
+            dog_age = (int(l_ages[0]) * 12) + int(l_ages[1])
+            print(f'dog age : {dog_age}')
+        else:
+            return f'{api_key.DOG_AGE} was not found', 400
+
         if api_key.BREED in request_data:
-            breed = request_data[api_key.BREED]
+            raw_breed = request_data[api_key.BREED]
+            breed = map_breed(raw_breed)
+            if breed == 'error':
+                return f'{raw_breed} does not support, please check spelling in Thai', 400
         else:
             return f'{api_key.BREED} was not found', 400
 
@@ -215,17 +301,24 @@ def lost_api():
             return f'{api_key.LOCATION} was not found', 400
 
     # check if the customer exists 
-    customer = db.collection(firestore_collection.REGISTER).document(customer_id).get()
-    if customer.exists:
+    customer_doc = db.collection(firestore_collection.REGISTER).document(customer_id).get()
+    if customer_doc.exists:
         print('customer has already existed')
     else:        
          db.collection(firestore_collection.REGISTER).document(customer_id).set({'display_name': display_name})
          print('register new customer')
 
+    customer = {
+        'customer_id': customer_id,
+        'owner_name': owner_name,
+        'phone': phone,
+    }
     dog = {
         'name': dog_name,
         'breed': breed,
         'image': image,
+        'age': dog_age,
+        'gender': dog_gender,
         'location': location,
     }
 
@@ -235,7 +328,7 @@ def lost_api():
     if len(dogs) > 0:
         return f'{dog_name} was already declared as lost', 200
 
-    add_dog_to_lost(customer_id, dog)
+    add_dog_to_lost(customer, dog)
 
     matchDf = scan_dogs(dog, firestore_collection.FOUND_DOGS)
     result = matchDf.to_dict('records')
@@ -317,7 +410,10 @@ def test_api():
             return f'{api_key.IMAGE} was not found', 400        
 
         if api_key.BREED in request_data:
-            breed = request_data[api_key.BREED]
+            raw_breed = request_data[api_key.BREED]
+            breed = map_breed(raw_breed)
+            if breed == 'error':
+                return f'{raw_breed} does not support, please check spelling', 400
         else:
             return f'{api_key.BREED} was not found', 400
 
@@ -354,9 +450,9 @@ def test_api():
 # need to return top 5 dog that match the given dog parameter
 def match_dogs(dog, df):
 #    example dataframe
-#          dog_id            breed             image            distance
-# 0  I5uYoz6psULpitPvHb0z  chow chow  s3-image-url-from-botnoi  5.409976
-# 1  0nLFAazd6Lht41i5bJVB  chow chow  s3-image-url-from-botnoi  2.251150
+#          dog_id            breed             image            distance gender     age
+# 0  I5uYoz6psULpitPvHb0z  chow chow  s3-image-url-from-botnoi  5.409976   0        18
+# 1  0nLFAazd6Lht41i5bJVB  chow chow  s3-image-url-from-botnoi  2.251150   1        6
     return df
 
 def scan_dogs(dog, collection_name):
@@ -393,6 +489,44 @@ def scan_dogs(dog, collection_name):
     print(df)
     matchDf = match_dogs(dog, df)
     return matchDf
+
+def swap_dict(old_dict):
+    new_dict = {}
+    for key, value in old_dict.items():
+        if value in new_dict:
+            new_dict[value].append(key)
+        else:
+            new_dict[value] = key
+    return new_dict
+
+def map_breed(breed, reverse=False):
+    breeds = {
+        'ชิวาว่า': 'Chihuahua',
+        'โกลเด้น': 'Golden Retriever',
+        'บางแก้ว': 'Bangkaew',
+        'ชิสุ': 'Shih-tzu',
+        'ชิบะ': 'Shiba',
+        'ไซบีเรียนฮัสกี้': 'Siberian Husky',
+        'ปั๊ก': 'Pug',
+        'คอร์กี้': 'Corgi',
+        'เฟรนช์บูลด๊อก': 'French Bulldog',
+        'ปอมเมอเรเนียน': 'Pomeranian',
+        'ไทยหลังอาน': 'Thai Ridgeback',
+        'ลาบราดอร์': 'Labrador Retriever',
+        'พุดเดิ้ล': 'Poodle',
+        'บีเกิ้ล': 'Beagle',
+        'เยอรมันเชพเพิร์ด (อัลเซเชี่ยน)': 'German shepherd',
+        'บูลด็อก': 'Bulldog',
+        'แจ็กรัสเซลล์': 'Jack Russell Terrier',
+        'บาสเซ็ตฮาวด์': 'Basset Hound',
+        'มินิเอเจอร์พินเชอร์': 'Miniature Pinscher',
+        'ชเนาเซอร์': 'Miniature Schnauzer',
+    }
+    if reverse:
+        breeds = swap_dict(breeds)
+
+    result = breeds.get(breed, 'error')
+    return result
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
