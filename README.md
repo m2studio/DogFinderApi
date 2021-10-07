@@ -58,7 +58,7 @@ curl --location --request GET 'http://localhost:5000/get-dogs/xxx-xxxx-xxxx-1'
 The API to declare the registered dog as lost (need to do the registration before).  
 **Parameter**
 - `customer_id` line customer id
-- `phone'` the customer phone number
+- `phone` the customer phone number
 - `dog_id` generated dog id  
 - `location` the lat, long coordination where the dog lost
 
@@ -89,7 +89,7 @@ curl --location --request POST 'http://localhost:5000/lost-preregister' \
 The API to declare a dog as lost.  
 **Parameter**
 - `customer_id` line customer id
-- `phone'` the customer phone number
+- `phone` the customer phone number
 - `display_name` line customer display name
 - `image` the image URL on s3 we get from Botnoi
 - `dog_name` the dog name
