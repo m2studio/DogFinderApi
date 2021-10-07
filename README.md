@@ -93,7 +93,7 @@ The API to declare a dog as lost.
 - `display_name` line customer display name
 - `image` the image URL on s3 we get from Botnoi
 - `dog_name` the dog name
-- `dog_age` dog age in month
+- `dog_age` the format is in {year}-{month} ex -> 1-6 age = 1 year 6 months
 - `dog_gender` 0 | 1, 1 is male, 0 is female
 - `breed` the dog breed in Thai
 - `location` the lat, long coordination where the dog lost  
