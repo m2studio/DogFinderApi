@@ -185,3 +185,15 @@ curl --location --request POST 'http://localhost:5000/test' \
     }
 }'
 ```
+
+## Deployment
+#### Prerequisites
+1. Heroku CLI : [download Heroku CLI](https://devcenter.heroku.com/articles/heroku-cli)
+2. Docker : [download docker](https://www.docker.com/products/docker-desktop)
+
+#### Steps
+1. Login Heroku `heroku login` 
+2. Login Heroku Container `heroku container:login`
+3. Push the container to Heroku `heroku container:push web --app dog-finder01`
+4. Release the newly pushed image `heroku container:release web --app dog-finder01`
+5. Now you should be able to access `https://dog-finder01.herokuapp.com/` , it should say **API is running**

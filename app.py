@@ -45,12 +45,12 @@ def register_api():
         if api_key.CUSTOMER_ID in request_data:
             customer_id = request_data[api_key.CUSTOMER_ID]
         else:
-            return f'{api_key.CUSTOMER_ID} was not found', 400
+            return create_response('error', 400, f'{api_key.CUSTOMER_ID} was not found')
 
         if api_key.OWNER_NAME in request_data:
             owner_name = request_data[api_key.OWNER_NAME]
         else:
-            return f'{api_key.OWNER_NAME} was not found', 400
+            return create_response('error', 400, f'{api_key.OWNER_NAME} was not found')
 
         if api_key.DOG_AGE in request_data:
             r_dog_age = request_data[api_key.DOG_AGE]
@@ -58,12 +58,12 @@ def register_api():
             dog_age = (int(l_ages[0]) * 12) + int(l_ages[1])
             print(f'dog age : {dog_age}')
         else:
-            return f'{api_key.DOG_AGE} was not found', 400
+            return create_response('error', 400, f'{api_key.DOG_AGE} was not found')
 
         if api_key.DOG_GENDER in request_data:
             dog_gender = request_data[api_key.DOG_GENDER]
         else:
-            return f'{api_key.DOG_GENDER} was not found', 400
+            return create_response('error', 400, f'{api_key.DOG_GENDER} was not found')
 
         if api_key.DISPLAY_NAME in request_data:
             display_name = request_data[api_key.DISPLAY_NAME]
@@ -71,18 +71,18 @@ def register_api():
         if api_key.IMAGE in request_data:
             image = request_data[api_key.IMAGE]
         else:
-            return f'{api_key.IMAGE} was not found', 400
+            return create_response('error', 400, f'{api_key.IMAGE} was not found')
 
         if api_key.DOG in request_data:
             dog_name = request_data[api_key.DOG].lower()
         else:
-            return f'{api_key.DOG} was not found', 400
+            return create_response('error', 400, f'{api_key.api_key} was not found')
 
         if api_key.BREED in request_data:            
             raw_breed = request_data[api_key.BREED]
             breed = map_breed(raw_breed)
             if breed == 'error':
-                return f'{raw_breed} does not support, please check spelling', 400
+                return create_response('error', 400, f'{raw_breed} does not support, please check spelling')
 
             print(f'English breed : {breed}')
             thai_breed = map_breed(breed, True)
@@ -90,7 +90,7 @@ def register_api():
             type_breed = type(thai_breed)
             print(f'type of thai breed : {type_breed}')
         else:
-            return f'{api_key.BREED} was not found', 400
+            return create_response('error', 400, f'{api_key.BREED} was not found')
         
     customer = {
         'display_name': display_name,
@@ -102,7 +102,7 @@ def register_api():
     print(f'dogs.length : {len(dogs)}')
 
     if len(dogs) > 0:
-        return f'{dog_name} was already register', 200
+        return create_response('ok', 200, f'{dog_name} was already register')
 
     db.collection(firestore_collection.REGISTER).document(customer_id).collection(firestore_collection.REGISTERD_DOGS).add(
     {
@@ -116,13 +116,17 @@ def register_api():
             'datetime': datetime.now(),
     })
 
-    return f'Successfully register {dog_name} to our system'
+    return create_response('ok', 200, f'Successfully register {dog_name} to our system')
+    # return {'status': 'OK', 'message': f'Successfully register {dog_name} to our system'}, 200
+
+def create_response(status, code, message):
+    return {'status': status, 'message': message}, code
 
 @app.route('/get-dogs/<customer_id>')
 def get_dogs_api(customer_id):
     customer = db.collection(firestore_collection.REGISTER).document(customer_id).get()
     if not customer.exists:
-        return f'customer_id : {customer_id} was not exists', 404    
+        return create_response('error', 404, f'customer_id : {customer_id} was not exists')
 
     print(f'customer_id : {customer_id}')
     docs = db.collection(firestore_collection.REGISTER).document(customer_id).collection(firestore_collection.REGISTERD_DOGS).stream() # get all
@@ -139,13 +143,13 @@ def get_dogs_api(customer_id):
             "name": data['name'],
             "breed": data['breed'],
             "image": data['image'],
-            "age": data['age'],
-            "gender": data['gender'],
+            "dog_age": data['age'],
+            "dog_gender": data['gender'],
             # "lat": location.latitude,
             # "long": location.longitude,
         })
 
-    return {'status': 'OK', 'results': results}, 200
+    return {'status': 'ok', 'results': results}, 200
 
 def add_dog_to_lost(customer, dog):
     owner_doc = db.collection(firestore_collection.REGISTER).document(customer['customer_id']) 
@@ -181,29 +185,29 @@ def lostpreregister_api():
         if api_key.CUSTOMER_ID in request_data:
             customer_id = request_data[api_key.CUSTOMER_ID]
         else:
-            return f'{api_key.CUSTOMER_ID} was not found', 400
+            return create_response('error', 400, f'{api_key.CUSTOMER_ID} was not found')
         
         if api_key.PHONE in request_data:
             phone = request_data[api_key.PHONE]
         else:
-            return f'{api_key.PHONE} was not found', 400
+            return create_response('error', 400, f'{api_key.PHONE} was not found')
 
         if api_key.LOCATION in request_data:
             lat = request_data[api_key.LOCATION]['lat']
             long = request_data[api_key.LOCATION]['long']
             location= firestore.GeoPoint(lat, long)            
         else:
-            return f'{api_key.LOCATION} was not found', 400
+            return create_response('error', 400, f'{api_key.LOCATION} was not found')
 
         if api_key.DOG_ID in request_data:
             dog_id = request_data[api_key.DOG_ID]
         else:
-            return f'{api_key.DOG_ID} was not found', 400
+            return create_response('error', 400, f'{api_key.DOG_ID} was not found')
 
     # get dog from register collection
     doc = db.collection(firestore_collection.REGISTER).document(customer_id).collection(firestore_collection.REGISTERD_DOGS).document(dog_id).get()
     if not doc.exists:
-        return f'dog_id {dog_id} was not found', 404
+        return create_response('error', 404, f'dog_id {dog_id} was not found')
 
     print(doc.to_dict())
 
@@ -213,7 +217,7 @@ def lostpreregister_api():
     print(f'dogs.length : {len(dogs)}')
 
     if len(dogs) > 0:
-        return f'{dog_name} was already declared as lost', 200
+        return create_response('ok', 200, f'{dog_name} was already declared as lost')
     
     dog['location'] = location
     customer = {
@@ -247,17 +251,17 @@ def lost_api():
         if api_key.CUSTOMER_ID in request_data:
             customer_id = request_data[api_key.CUSTOMER_ID]
         else:
-            return f'{api_key.CUSTOMER_ID} was not found', 400
+            return create_response('error', 400, f'{api_key.CUSTOMER_ID} was not found')
 
         if api_key.OWNER_NAME in request_data:
             owner_name = request_data[api_key.OWNER_NAME]
         else:
-            return f'{api_key.OWNER_NAME} was not found', 400
+            return create_response('error', 400, f'{api_key.OWNER_NAME} was not found')
 
         if api_key.PHONE in request_data:
             phone = request_data[api_key.PHONE]
         else:
-            return f'{api_key.PHONE} was not found', 400
+            return create_response('error', 400, f'{api_key.PHONE} was not found')
 
         if api_key.DISPLAY_NAME in request_data:
             display_name = request_data[api_key.DISPLAY_NAME]
@@ -265,17 +269,17 @@ def lost_api():
         if api_key.IMAGE in request_data:
             image = request_data[api_key.IMAGE]
         else:
-            return f'{api_key.IMAGE} was not found', 400
+            return create_response('error', 400, f'{api_key.IMAGE} was not found')
 
         if api_key.DOG in request_data:
             dog_name = request_data[api_key.DOG].lower()
         else:
-            return f'{api_key.DOG} was not found', 400
+            return create_response('error', 400, f'{api_key.DOG} was not found')
 
         if api_key.DOG_GENDER in request_data:
             dog_gender = request_data[api_key.DOG_GENDER]
         else:
-            return f'{api_key.DOG_GENDER} was not found', 400
+            return create_response('error', 400, f'{api_key.DOG_GENDER} was not found')
 
         if api_key.DOG_AGE in request_data:
             r_dog_age = request_data[api_key.DOG_AGE]
@@ -283,22 +287,22 @@ def lost_api():
             dog_age = (int(l_ages[0]) * 12) + int(l_ages[1])
             print(f'dog age : {dog_age}')
         else:
-            return f'{api_key.DOG_AGE} was not found', 400
+            return create_response('error', 400, f'{api_key.DOG_AGE} was not found')
 
         if api_key.BREED in request_data:
             raw_breed = request_data[api_key.BREED]
             breed = map_breed(raw_breed)
             if breed == 'error':
-                return f'{raw_breed} does not support, please check spelling in Thai', 400
+                return create_response('error', 400, f'{raw_breed} does not support, please check spelling in Thai')
         else:
-            return f'{api_key.BREED} was not found', 400
+            return create_response('error', 400, f'{api_key.BREED} was not found')
 
         if api_key.LOCATION in request_data:
             lat = request_data[api_key.LOCATION]['lat']
             long = request_data[api_key.LOCATION]['long']
             location= firestore.GeoPoint(lat, long)            
         else:
-            return f'{api_key.LOCATION} was not found', 400
+            return create_response('error', 400, f'{api_key.LOCATION} was not found')
 
     # check if the customer exists 
     customer_doc = db.collection(firestore_collection.REGISTER).document(customer_id).get()
@@ -326,7 +330,7 @@ def lost_api():
     print(f'dogs.length : {len(dogs)}')
 
     if len(dogs) > 0:
-        return f'{dog_name} was already declared as lost', 200
+        return create_response('ok', 200, f'{dog_name} was already declared as lost')
 
     add_dog_to_lost(customer, dog)
 
@@ -349,7 +353,7 @@ def found_api():
         if api_key.CUSTOMER_ID in request_data:
             customer_id = request_data[api_key.CUSTOMER_ID]
         else:
-            return f'{api_key.CUSTOMER_ID} was not found', 400
+            return create_response('error', 400, f'{api_key.CUSTOMER_ID} was not found')
 
         if api_key.DISPLAY_NAME in request_data:
             display_name = request_data[api_key.DISPLAY_NAME]
@@ -357,14 +361,14 @@ def found_api():
         if api_key.IMAGE in request_data:
             image = request_data[api_key.IMAGE]
         else:
-            return f'{api_key.IMAGE} was not found', 400      
+            return create_response('error', 400, f'{api_key.IMAGE} was not found')
 
         if api_key.LOCATION in request_data:
             lat = request_data[api_key.LOCATION]['lat']
             long = request_data[api_key.LOCATION]['long']
             location= firestore.GeoPoint(lat, long)            
         else:
-            return f'{api_key.LOCATION} was not found', 400
+            return create_response('error', 400, f'{api_key.LOCATION} was not found')
 
     breed = predict_breed(image)
     data = {}
@@ -407,27 +411,27 @@ def test_api():
         if api_key.IMAGE in request_data:
             image = request_data[api_key.IMAGE]
         else:
-            return f'{api_key.IMAGE} was not found', 400        
+            return create_response('error', 400, f'{api_key.IMAGE} was not found')
 
         if api_key.BREED in request_data:
             raw_breed = request_data[api_key.BREED]
             breed = map_breed(raw_breed)
             if breed == 'error':
-                return f'{raw_breed} does not support, please check spelling', 400
+                return create_response('error', 400, f'{raw_breed} does not support, please check spelling')
         else:
-            return f'{api_key.BREED} was not found', 400
+            return create_response('error', 400, f'{api_key.BREED} was not found')
 
         if api_key.LOCATION in request_data:
             lat = request_data[api_key.LOCATION]['lat']
             long = request_data[api_key.LOCATION]['long']
             location= firestore.GeoPoint(lat, long)            
         else:
-            return f'{api_key.LOCATION} was not found', 400
+            return create_response('error', 400, f'{api_key.LOCATION} was not found')
 
         if 'case' in request_data:
             case = request_data['case']
         else:
-            return f'case was not found', 400  
+            return create_response('error', 400, f'case was not found')
 
     dog = {
         'breed': breed,
@@ -440,7 +444,7 @@ def test_api():
     elif case == 'found':
         collection_group = firestore_collection.FOUND_DOGS
     else:
-        return f'test API does not support case : {case}, it MUST be either lost or found', 400
+        return create_response('error', 400,  f'test API does not support case : {case}, it MUST be either lost or found')
 
     matchDf = scan_dogs(dog, collection_group)
     result = matchDf.to_dict('records')
