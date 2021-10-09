@@ -1,3 +1,4 @@
+import sys
 import os
 from flask import Flask, flash, request, render_template
 from datetime import datetime
@@ -26,11 +27,14 @@ app = Flask(__name__)
 
 @app.route('/')
 def home():
+    print_heroku('API is running')
     return 'API is running'
 
 @app.route('/register', methods = ['POST'])
 def register_api():
     request_data = request.get_json()
+    print_heroku('request JSON')
+    print_heroku(request_data)
 
     customer_id = None
     owner_name = None
@@ -56,7 +60,7 @@ def register_api():
             r_dog_age = request_data[api_key.DOG_AGE]
             l_ages = r_dog_age.split('-')
             dog_age = (int(l_ages[0]) * 12) + int(l_ages[1])
-            print(f'dog age : {dog_age}')
+            print_heroku(f'dog age : {dog_age}')
         else:
             return create_response('error', 400, f'{api_key.DOG_AGE} was not found')
 
@@ -84,11 +88,11 @@ def register_api():
             if breed == 'error':
                 return create_response('error', 400, f'{raw_breed} does not support, please check spelling')
 
-            print(f'English breed : {breed}')
+            print_heroku(f'English breed : {breed}')
             thai_breed = map_breed(breed, True)
-            print(f'Thai breed : {thai_breed}')
+            print_heroku(f'Thai breed : {thai_breed}')
             type_breed = type(thai_breed)
-            print(f'type of thai breed : {type_breed}')
+            print_heroku(f'type of thai breed : {type_breed}')
         else:
             return create_response('error', 400, f'{api_key.BREED} was not found')
         
@@ -96,10 +100,10 @@ def register_api():
         'display_name': display_name,
         'owner_name': owner_name,
     }
-    print(request_data)
+    print_heroku(request_data)
     db.collection(firestore_collection.REGISTER).document(customer_id).set(customer) ## add or update the user profile   
     dogs = db.collection(firestore_collection.REGISTER).document(customer_id).collection(firestore_collection.REGISTERD_DOGS).where('name', '==', dog_name).get()
-    print(f'dogs.length : {len(dogs)}')
+    print_heroku(f'dogs.length : {len(dogs)}')
 
     if len(dogs) > 0:
         return create_response('ok', 200, f'{dog_name} was already register')
@@ -115,7 +119,7 @@ def register_api():
             'is_informed': False,
             'datetime': datetime.now(),
     })
-
+   
     return create_response('ok', 200, f'Successfully register {dog_name} to our system')
     # return {'status': 'OK', 'message': f'Successfully register {dog_name} to our system'}, 200
 
@@ -128,16 +132,16 @@ def get_dogs_api(customer_id):
     if not customer.exists:
         return create_response('error', 404, f'customer_id : {customer_id} was not exists')
 
-    print(f'customer_id : {customer_id}')
+    print_heroku(f'customer_id : {customer_id}')
     docs = db.collection(firestore_collection.REGISTER).document(customer_id).collection(firestore_collection.REGISTERD_DOGS).stream() # get all
     # docs = db.collection(firestore_collection.REGISTER).document(customer_id).collection(firestore_collection.REGISTERD_DOGS).where('is_informed', '==', False).stream()
     results = []
     for doc in docs:
         data = doc.to_dict()        
-        print(f'{doc.id} => {data}')
+        print_heroku(f'{doc.id} => {data}')
         # location = data['location']
-        # print(f'lat => {location.latitude}')
-        # print(f'long => {location.longitude}')
+        # print_heroku(f'lat => {location.latitude}')
+        # print_heroku(f'long => {location.longitude}')
         results.append({
             "dog_id": doc.id,
             "name": data['name'],
@@ -149,7 +153,65 @@ def get_dogs_api(customer_id):
             # "long": location.longitude,
         })
 
-    return {'status': 'ok', 'results': results}, 200
+    # response_json = {'status': 'ok', 'results': results}
+    # print_heroku(response_json)
+    flex_json = create_flex(results)
+    print_heroku(flex_json)
+    return flex_json, 200
+
+def create_flex(dogs):
+    flex = {
+        'type': 'carousel',
+    }
+    contents = []
+    i = 1
+    for dog in dogs:
+         content = {
+             'body': {
+                'contents': [
+                    {
+                        'contents': [],
+                        'size': 'xl',
+                        'text': dog['name'],
+                        'type': 'text',
+                        'weight': 'bold',
+                        'wrap': True,
+                    }
+                ],
+                'layout': 'vertical',
+                'spacing': 'sm',
+                'type': 'box',
+             },
+             'footer': {
+                 'contents': [
+                     {
+                         'action': {
+                             'type': 'message',
+                             'label': 'แจ้งหาย',
+                             'text': 'หาย' + str(i),
+                         },
+                         'style': 'primary',
+                         'type': 'button',
+                     }
+                 ],
+                'layout': 'vertical',
+                'spacing': 'sm',
+                'type': 'box',
+             },
+             'hero': {
+                'aspectMode': 'fit',
+                'aspectRatio': '20:13',
+                'size': 'full',
+                'type': 'image',
+                'url': dog['image'],
+             },
+             'type': 'bubble',
+         }
+         i = i + 1
+         contents.append(content)    
+
+    flex['contents'] = contents
+    return flex
 
 def add_dog_to_lost(customer, dog):
     owner_doc = db.collection(firestore_collection.REGISTER).document(customer['customer_id']) 
@@ -209,12 +271,12 @@ def lostpreregister_api():
     if not doc.exists:
         return create_response('error', 404, f'dog_id {dog_id} was not found')
 
-    print(doc.to_dict())
+    print_heroku(doc.to_dict())
 
     dog = doc.to_dict()    
     dog_name = dog['name']
     dogs = db.collection(firestore_collection.LOST).document(customer_id).collection(firestore_collection.LOST_DOGS).where('name', '==', dog_name).where('is_found', '==', False).get()
-    print(f'dogs.length : {len(dogs)}')
+    print_heroku(f'dogs.length : {len(dogs)}')
 
     if len(dogs) > 0:
         return create_response('ok', 200, f'{dog_name} was already declared as lost')
@@ -285,7 +347,7 @@ def lost_api():
             r_dog_age = request_data[api_key.DOG_AGE]
             l_ages = r_dog_age.split('-')
             dog_age = (int(l_ages[0]) * 12) + int(l_ages[1])
-            print(f'dog age : {dog_age}')
+            print_heroku(f'dog age : {dog_age}')
         else:
             return create_response('error', 400, f'{api_key.DOG_AGE} was not found')
 
@@ -307,10 +369,10 @@ def lost_api():
     # check if the customer exists 
     customer_doc = db.collection(firestore_collection.REGISTER).document(customer_id).get()
     if customer_doc.exists:
-        print('customer has already existed')
+        print_heroku('customer has already existed')
     else:        
          db.collection(firestore_collection.REGISTER).document(customer_id).set({'display_name': display_name})
-         print('register new customer')
+         print_heroku('register new customer')
 
     customer = {
         'customer_id': customer_id,
@@ -327,7 +389,7 @@ def lost_api():
     }
 
     dogs = db.collection(firestore_collection.LOST).document(customer_id).collection(firestore_collection.LOST_DOGS).where('name', '==', dog_name).where('is_found', '==', False).get()
-    print(f'dogs.length : {len(dogs)}')
+    print_heroku(f'dogs.length : {len(dogs)}')
 
     if len(dogs) > 0:
         return create_response('ok', 200, f'{dog_name} was already declared as lost')
@@ -460,10 +522,10 @@ def match_dogs(dog, df):
     return df
 
 def scan_dogs(dog, collection_name):
-    print(dog)
+    print_heroku(dog)
     breed = dog['breed']
     docs = db.collection_group(collection_name).where('breed', '==', breed).get()
-    print(f'there are {len(docs)} {breed} dogs in system')
+    print_heroku(f'there are {len(docs)} {breed} dogs in system')
     location = dog['location']
     lat = location.latitude
     long = location.longitude
@@ -471,10 +533,10 @@ def scan_dogs(dog, collection_name):
     dataset = []
     for doc in docs:        
         data = doc.to_dict()
-        print(f'{doc.id} => {data}')
+        print_heroku(f'{doc.id} => {data}')
         destination = (data['location'].latitude, data['location'].longitude)
         dist = distance.distance(source, destination).km # get distance between 2 geo points
-        print(f'distance between dogs is {dist} km.')
+        print_heroku(f'distance between dogs is {dist} km.')
 
         if (dist < RADIUS):
             row = {
@@ -489,8 +551,8 @@ def scan_dogs(dog, collection_name):
 
     pd.set_option('display.width', 120)
     df = pd.DataFrame(dataset)
-    print('printing data frame')
-    print(df)
+    print_heroku('printing data frame')
+    print_heroku(df)
     matchDf = match_dogs(dog, df)
     return matchDf
 
@@ -531,6 +593,10 @@ def map_breed(breed, reverse=False):
 
     result = breeds.get(breed, 'error')
     return result
+
+def print_heroku(message):
+    print(message)
+    sys.stdout.flush()
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
