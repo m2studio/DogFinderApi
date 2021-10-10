@@ -126,6 +126,26 @@ def register_api():
 def create_response(status, code, message):
     return {'status': status, 'message': message}, code
 
+@app.route('/get-registered/<customer_id>')
+def get_registered_user_api(customer_id):
+    customer = db.collection(firestore_collection.REGISTER).document(customer_id).get()
+    found_status = False
+    message = None
+    if customer.exists:
+        found_status = True
+
+    if found_status:
+        message = f'customer id : {customer_id} has been registered'
+    else:
+        message = f'customer id : {customer_id} has NOT registered yet'
+
+    output = {
+        'found_status': found_status,
+        'message': message,
+        'status': 'ok',
+    }
+    return output, 200
+
 @app.route('/get-dogs/<customer_id>')
 def get_dogs_api(customer_id):
     customer = db.collection(firestore_collection.REGISTER).document(customer_id).get()
@@ -145,7 +165,7 @@ def get_dogs_api(customer_id):
         results.append({
             "dog_id": doc.id,
             "name": data['name'],
-            "breed": data['breed'],
+            "breed": map_breed(data['breed'], True),
             "image": data['image'],
             "dog_age": data['age'],
             "dog_gender": data['gender'],
@@ -188,7 +208,7 @@ def create_flex(dogs):
                          'action': {
                              'type': 'message',
                              'label': 'แจ้งหาย',
-                             'text': 'หาย' + str(i),
+                             'text': dog['dog_id'],
                          },
                          'style': 'primary',
                          'type': 'button',
@@ -214,7 +234,11 @@ def create_flex(dogs):
     return flex
 
 def add_dog_to_lost(customer, dog):
-    owner_doc = db.collection(firestore_collection.REGISTER).document(customer['customer_id']) 
+    owner_doc = db.collection(firestore_collection.REGISTER).document(customer['customer_id'])
+    db.collection(firestore_collection.LOST).document(customer['customer_id']).set({
+        'datetime': datetime.now(),
+    })
+
     db.collection(firestore_collection.LOST).document(customer['customer_id']).collection(firestore_collection.LOST_DOGS).add({
         'name': dog['name'],
         'breed': dog['breed'],
@@ -225,22 +249,25 @@ def add_dog_to_lost(customer, dog):
         'is_found': False,
         'datetime': datetime.now(),
         'owner': owner_doc,
-    })
-
+    })   
     # remove customer id as we don't need this field
     del customer['customer_id']
-    # update customer info in register table
-    owner_doc.update(customer)
+    # update customer info
+    owner_doc.update(customer)   
 
 @app.route('/lost-preregister', methods = ['POST'])
 def lostpreregister_api():
     request_data = request.get_json()
+    print_heroku('JSON')
+    print_heroku(request_data)
     customer_id = None
     phone = None
     dog_id = None
     location = None
     lat = None
     long = None
+    reward = None
+    note = None
 
 
     if request_data:
@@ -266,6 +293,16 @@ def lostpreregister_api():
         else:
             return create_response('error', 400, f'{api_key.DOG_ID} was not found')
 
+        if api_key.REWARD in request_data:
+            reward = request_data[api_key.REWARD]
+        else:
+            return create_response('error', 400, f'{api_key.REWARD} was not found')
+
+        if api_key.NOTE in request_data:
+            note = request_data[api_key.NOTE]
+        else:
+            return create_response('error', 400, f'{api_key.NOTE} was not found')
+
     # get dog from register collection
     doc = db.collection(firestore_collection.REGISTER).document(customer_id).collection(firestore_collection.REGISTERD_DOGS).document(dog_id).get()
     if not doc.exists:
@@ -282,6 +319,8 @@ def lostpreregister_api():
         return create_response('ok', 200, f'{dog_name} was already declared as lost')
     
     dog['location'] = location
+    dog['reward'] = reward
+    dog['note'] = note
     customer = {
         'customer_id': customer_id,
         'phone': phone,
@@ -289,14 +328,27 @@ def lostpreregister_api():
     add_dog_to_lost(customer, dog)
 
     matchDf = scan_dogs(dog, firestore_collection.FOUND_DOGS)
-    result = matchDf.to_dict('records')
-    return json.dumps(result, indent=4), 200
+    found_status = False
+    match_rows = matchDf.shape[0] # count dataframe records
+    if match_rows > 0:
+        found_status = True
+    
+    message = f'there are {match_rows} dogs match with your dog {dog_name}'
+
+    return {
+        'found_status': found_status,
+        'message': message,
+        'status': 'ok',
+    }
+    # result = matchDf.to_dict('records')
+    # return json.dumps(result, indent=4), 200
 
 ## for the case we don't do the pre-register before
 @app.route('/lost-register', methods = ['POST'])
 def lost_api():
     request_data = request.get_json()
-
+    print_heroku('JSON')
+    print_heroku(request_data)
     customer_id = None
     owner_name = None
     display_name = None
@@ -308,6 +360,8 @@ def lost_api():
     lat = None
     long = None
     location = None
+    reward = None
+    note = None
 
     if request_data:
         if api_key.CUSTOMER_ID in request_data:
@@ -366,6 +420,16 @@ def lost_api():
         else:
             return create_response('error', 400, f'{api_key.LOCATION} was not found')
 
+        if api_key.REWARD in request_data:
+            reward = request_data[api_key.REWARD]
+        else:
+            return create_response('error', 400, f'{api_key.REWARD} was not found')
+
+        if api_key.NOTE in request_data:
+            note = request_data[api_key.NOTE]
+        else:
+            return create_response('error', 400, f'{api_key.NOTE} was not found')
+
     # check if the customer exists 
     customer_doc = db.collection(firestore_collection.REGISTER).document(customer_id).get()
     if customer_doc.exists:
@@ -377,7 +441,7 @@ def lost_api():
     customer = {
         'customer_id': customer_id,
         'owner_name': owner_name,
-        'phone': phone,
+        'phone': phone,        
     }
     dog = {
         'name': dog_name,
@@ -386,6 +450,8 @@ def lost_api():
         'age': dog_age,
         'gender': dog_gender,
         'location': location,
+        'reward': reward,
+        'note': note,
     }
 
     dogs = db.collection(firestore_collection.LOST).document(customer_id).collection(firestore_collection.LOST_DOGS).where('name', '==', dog_name).where('is_found', '==', False).get()
@@ -397,19 +463,57 @@ def lost_api():
     add_dog_to_lost(customer, dog)
 
     matchDf = scan_dogs(dog, firestore_collection.FOUND_DOGS)
-    result = matchDf.to_dict('records')
-    return json.dumps(result, indent=4), 200
+    found_status = False
+    match_rows = matchDf.shape[0] # count dataframe records
+    if match_rows > 0:
+        found_status = True
+    
+    message = f'there are {match_rows} dogs match with your dog name : {dog_name}'
+
+    return {
+        'found_status': found_status,
+        'message': message,
+        'status': 'ok',
+    }
+    # result = matchDf.to_dict('records')
+    # return json.dumps(result, indent=4), 200
+
+@app.route('/get-found-dogs')
+def get_found_dogs_api():
+    customer_id = request.args.get('customer_id')
+    dog_id = request.args.get('dog_id')
+
+    print_heroku(f'customer_id : {customer_id}')
+    print_heroku(f'dog_id : {dog_id}')
+
+    customer_doc = db.collection(firestore_collection.LOST).document(customer_id).get()
+    print(customer_doc.to_dict())
+    if not customer_doc.exists:
+        return create_response('error', 404, f'customer_id : {customer_id} was not found')
+
+    dog_doc = db.collection(firestore_collection.LOST).document(customer_id).collection(firestore_collection.LOST_DOGS).document(dog_id).get()
+    if not dog_doc.exists:
+        return create_response('error', 404, f'dog_id : {dog_id} was not found')
+
+    matchDf = scan_dogs(dog_doc.to_dict(), firestore_collection.FOUND)
+    # TODO : return flex message of match dogs to the customer
+    dogs = matchDf.to_dict('records')
+    flex = create_flex(dogs)
+    return flex, 200
 
 @app.route('/found', methods = ['POST'])
 def found_api():
     request_data = request.get_json()
-
+    print_heroku('request JSON')
+    print_heroku(request_data)
     customer_id = None
     display_name = None
     image = None
     lat = None
     long = None
     location = None
+    phone = None
+    note = None
 
     if request_data:
         if api_key.CUSTOMER_ID in request_data:
@@ -425,6 +529,16 @@ def found_api():
         else:
             return create_response('error', 400, f'{api_key.IMAGE} was not found')
 
+        if api_key.PHONE in request_data:
+            phone = request_data[api_key.PHONE]
+        else:
+            return create_response('error', 400, f'{api_key.PHONE} was not found')
+
+        if api_key.NOTE in request_data:
+            note = request_data[api_key.NOTE]
+        else:
+            return create_response('error', 400, f'{api_key.NOTE} was not found')
+
         if api_key.LOCATION in request_data:
             lat = request_data[api_key.LOCATION]['lat']
             long = request_data[api_key.LOCATION]['long']
@@ -433,7 +547,9 @@ def found_api():
             return create_response('error', 400, f'{api_key.LOCATION} was not found')
 
     breed = predict_breed(image)
-    data = {}
+    data = {
+        'phone': phone,        
+    }
     if display_name:
         data['display_name'] = display_name
     db.collection(firestore_collection.FOUND).document(customer_id).set(data)
@@ -444,16 +560,20 @@ def found_api():
         'location': location,
         'is_match': False,
         'datetime': datetime.now(),
+        'note': note,
     }
     db.collection(firestore_collection.FOUND).document(customer_id).collection(firestore_collection.FOUND_DOGS).add(dog)
 
     matchDf = scan_dogs(dog, firestore_collection.LOST_DOGS)
     result = matchDf.to_dict('records')
-    return json.dumps(result, indent=4), 200
+    # TODO : loop push notification as flex message to all owner of the match lost dogs
+    #return json.dumps(result, indent=4), 200
+    return create_response('ok', 200, 'successfully declare a found dog')
 
 #TODO: PREM
+# need to return breed as English (not Thai)
 def predict_breed(image):
-    breeds = ['beagle', 'poodle', 'siberian husky', 'pug', 'pomeranian', 'shih tzu', 'chow chow', 'crogi', 'akita inu', 'bernard']
+    breeds = ['Beagle', 'Poodle', 'Siberian Husky', 'Pug', 'Pomeranian', 'Shih-tzu', 'Golden Retriever', 'Corgi', 'Chihuahua', 'Bangkaew']
     index = random.randint(0, 9)
     return breeds[index]
 
@@ -593,6 +713,10 @@ def map_breed(breed, reverse=False):
 
     result = breeds.get(breed, 'error')
     return result
+
+# new API
+# https://dog-finder01.herokuapp.com/get-registered/{customer-id}
+
 
 def print_heroku(message):
     print(message)

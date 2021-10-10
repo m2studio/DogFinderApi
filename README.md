@@ -61,6 +61,8 @@ The API to declare the registered dog as lost (need to do the registration befor
 - `phone` the customer phone number
 - `dog_id` generated dog id  
 - `location` the lat, long coordination where the dog lost
+- `reward` the reward for a person who found the dog
+- `note` a note to identify the lost dog easier
 
 **Return**
 List of match dogs from found list. It can return empty list if there is no match dog at all.
@@ -97,6 +99,8 @@ The API to declare a dog as lost.
 - `dog_gender` 0 | 1, 1 is male, 0 is female
 - `breed` the dog breed in Thai
 - `location` the lat, long coordination where the dog lost  
+- `reward` the reward for a person who found the dog
+- `note` a note to identify the lost dog easier
 
 **Return**
 List of match dogs from found list. It can return empty list if there is no match dog at all.

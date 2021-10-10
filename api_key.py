@@ -1,6 +1,8 @@
 CUSTOMER_ID = 'customer_id'
 OWNER_NAME = 'owner_name'
 PHONE = 'phone'
+NOTE = 'note'
+REWARD = 'reward'
 DOG_AGE = 'dog_age'
 DOG_ID = 'dog_id'
 DOG_GENDER = 'dog_gender'
