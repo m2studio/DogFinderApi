@@ -446,7 +446,7 @@ def notify_found_dog(customer_id, dog, founder):
     phone = founder['phone']
     flex_json = create_flex_lost_dog([dog], founder)
     # line_bot_api.push_message(customer_id, TextSendMessage(text=f'founder name : {founder_name} , phone : {phone}'))
-    line_bot_api.push_message(customer_id, FlexSendMessage(alt_text='รูปหมาที่ใกล้เคียง', contents=flex_json))
+    line_bot_api.push_message(customer_id, FlexSendMessage(alt_text='พบน้องหมาลักษณะใกล้เคียง', contents=flex_json))
 
 def add_dog_to_lost(customer, dog):
     customer_id = customer['customer_id']
@@ -736,9 +736,9 @@ def get_found_dogs_api():
 
     matchDf = scan_found_dogs(dog_doc.to_dict())
     # TODO : PREM get only match records
+    # matchDf = match_dogs(dog_doc.to_dict(), matchDf)
     records = matchDf.to_dict('records')
     print_heroku(records)
-    # TODO : return flex message of match dogs to the customer
     flex = create_flex_found_dog(records)
     return flex, 200
 
