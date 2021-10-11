@@ -726,7 +726,7 @@ def get_dog_info():
     customer = customer_doc.to_dict()
     print(customer)
 
-    dog_doc = db.collection(firestore_collection.LOST).document(customer_id).collection(firestore_collection.LOST_DOGS).document(dog_id).get()
+    dog_doc = db.collection(firestore_collection.REGISTER).document(customer_id).collection(firestore_collection.REGISTERD_DOGS).document(dog_id).get()
     if not dog_doc.exists:
         return create_response('error', 404, f'dog_id : {dog_id} was not found')
 
