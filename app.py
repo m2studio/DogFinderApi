@@ -6,6 +6,7 @@ import pandas as pd
 import pickle
 import random
 import json 
+import math
 import geopy
 from geopy import distance
 
@@ -709,6 +710,52 @@ def lost_api():
         'message': message,
         'status': 'ok',
     }
+
+# https://dog-finder01.herokuapp.com/get-dog-info?customer_id={customer_id}&dog_id={dog_id}
+@app.route('/get-dog-info')
+def get_dog_info():
+    customer_id = request.args.get('customer_id')
+    dog_id = request.args.get('dog_id')
+    print_heroku(f'customer_id : {customer_id}')
+    print_heroku(f'dog_id : {dog_id}')
+
+    customer_doc = db.collection(firestore_collection.REGISTER).document(customer_id).get()    
+    if not customer_doc.exists:
+        return create_response('error', 404, f'customer_id : {customer_id} was not found')
+
+    customer = customer_doc.to_dict()
+    print(customer)
+
+    dog_doc = db.collection(firestore_collection.LOST).document(customer_id).collection(firestore_collection.LOST_DOGS).document(dog_id).get()
+    if not dog_doc.exists:
+        return create_response('error', 404, f'dog_id : {dog_id} was not found')
+
+    dog = dog_doc.to_dict()    
+    dog_age = convert_month_to_year_month_in_thai(dog['age'])
+    print_heroku(f'dog_age : {dog_age}')
+
+    output_json = {
+        'owner_name': customer['owner_name'],
+        'image': dog['image'],
+        'dog_name': dog['name'],
+        'dog_gender': dog['gender'],
+        'dog_age': dog_age,
+        'breed': dog['breed'],
+    }
+    return output_json, 200
+
+def convert_month_to_year_month_in_thai(month):
+    if (month < 12):
+        return f'{month} เดือน'
+
+    if month % 12 == 0:
+        year = math.trunc(month / 12)
+        return f'{year} ปี'
+    else:        
+        year = math.trunc(month / 12)
+        n_month = month % 12
+        return f'{year} ปี {n_month} เดือน'
+    
 
 # https://dog-finder01.herokuapp.com/get-found-dogs?customer_id={customer_id}&dog_id={dog_id}
 @app.route('/get-found-dogs')
