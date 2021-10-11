@@ -246,17 +246,7 @@ def create_flex_found_dog(dogs):
     for dog in dogs:
          content = {
              'body': {
-                'contents': [
-                {
-                    "type": "text",
-                    "text": 'ไม่มีชื่อ', # TODO : how to remove this field without affecting layout
-                    "wrap": True,
-                    "weight": "bold",
-                    "size": "xl"
-                },
-                {
-                    "type": "separator"
-                },
+                'contents': [                
                 {
                     "type": "box",
                     "layout": "vertical",
@@ -738,13 +728,17 @@ def get_found_dogs_api():
     if not dog_doc.exists:
         return create_response('error', 404, f'dog_id : {dog_id} was not found')
 
-    matchDf = scan_found_dogs(dog_doc.to_dict())
+    lost_dog = dog_doc.to_dict()
+    dog_name = lost_dog['name']
+    matchDf = scan_found_dogs(lost_dog)
     # TODO : PREM get only match records
     # matchDf = match_dogs(dog_doc.to_dict(), matchDf)
     records = matchDf.to_dict('records')
     print_heroku(records)
     flex = create_flex_found_dog(records)
-    return flex, 200
+    print_heroku(flex)
+    notify_flex(customer_id, f'รายการน้องหมาที่ใกล้เคียงกับ{dog_name}', flex)
+    return create_response('ok', 200, f'successfully push list of found dogs to custoomer : {customer_id}')
 
 @app.route('/found', methods = ['POST'])
 def found_api():
