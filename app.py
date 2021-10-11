@@ -179,8 +179,9 @@ def get_dogs_api():
         })
     
     flex_json = create_flex(results)
+    notify_flex(customer_id, 'รายการน้องหมาที่ลงทะเบียน', flex_json)
     print_heroku(flex_json)
-    return flex_json, 200
+    return create_response('ok', '200', f'successfully push registered dog list to customer : {customer_id}')
 
 def create_flex(dogs):
     flex = {
@@ -438,6 +439,9 @@ def create_flex_lost_dog(dogs, founder):
     flex['contents'] = contents
     return flex
 
+def notify_flex(customer_id, alt_message, flex_json):
+    line_bot_api.push_message(customer_id, FlexSendMessage(alt_text=alt_message, contents=flex_json))
+
 # customer_id is the dog owner
 # dog is the lost dog
 # founder will contains name and phone
@@ -446,7 +450,7 @@ def notify_found_dog(customer_id, dog, founder):
     phone = founder['phone']
     flex_json = create_flex_lost_dog([dog], founder)
     # line_bot_api.push_message(customer_id, TextSendMessage(text=f'founder name : {founder_name} , phone : {phone}'))
-    line_bot_api.push_message(customer_id, FlexSendMessage(alt_text='พบน้องหมาลักษณะใกล้เคียง', contents=flex_json))
+    notify_flex(customer_id, 'พบน้องหมาลักษณะใกล้เคียง', flex_json)
 
 def add_dog_to_lost(customer, dog):
     customer_id = customer['customer_id']
