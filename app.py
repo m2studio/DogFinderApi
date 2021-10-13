@@ -5,6 +5,7 @@ from datetime import datetime
 import pandas as pd
 import pickle
 import random
+from decimal import Decimal
 import json 
 import math
 import geopy
@@ -183,6 +184,920 @@ def get_dogs_api():
     notify_flex(customer_id, 'รายการน้องหมาที่ลงทะเบียน', flex_json)
     print_heroku(flex_json)
     return create_response('ok', '200', f'successfully push registered dog list to customer : {customer_id}')
+
+# http://localhost:5000/get-flex-dog-info?customer_id=Ufc5c40adb25791d5da4e25012b6023f8&dog_id=WJF5KdDRgjaBLVQHSF8M&phone=0847485152&address=หมู่บ้านการบินไทย 77/99&latitude=13.912512763412861&longitude=100.55167378245899&reward=5000 บาท&note=ไม่มี
+# https://dog-finder01.herokuapp.com/get-flex-dog-info?customer_id={customer_id}&dog_id={dog_id}&=phone={phone}&address={address}&latitude={latitude}&longitude={longitude}&reward={reward}&note={note}
+@app.route('/get-flex-dog-info')
+def get_flex_dog_info_api():
+    customer_id = request.args.get('customer_id')
+    if not customer_id:
+        return create_response('error', 400, 'customer_id was not found')
+
+    dog_id = request.args.get('dog_id')
+    if not dog_id:
+        return create_response('error', 400, 'dog_id was not found')
+
+    phone = request.args.get('phone')
+    if not phone:
+        return create_response('error', 400, 'phone was not found')
+
+    reward = request.args.get('reward')
+    if not reward:
+        reward = 'ไม่มี'
+
+    address = request.args.get('address')
+    if not address:
+        return create_response('error', 400, 'address was not found')
+
+    latitude = request.args.get('latitude')
+    longitude = request.args.get('longitude')
+    lat = Decimal(latitude)
+    long = Decimal(longitude)
+    location= firestore.GeoPoint(lat, long)
+    note = request.args.get('note')
+    if not note:
+        note = 'ไม่มี'
+
+    customer_doc = db.collection(firestore_collection.REGISTER).document(customer_id).get()
+    if not customer_doc.exists:
+        return create_response('error', 404, f'customer_id : {customer_id} was not exists')
+
+    dog_doc = db.collection(firestore_collection.REGISTER).document(customer_id).collection(firestore_collection.REGISTERD_DOGS).document(dog_id).get()
+    if not dog_doc.exists:
+        return create_response('error', 404, f'dog_id : {dog_id} was not found')
+
+    customer = customer_doc.to_dict()
+    customer['phone'] = phone
+    dog = dog_doc.to_dict()
+    dog['location'] = location
+    dog['address'] = address
+    dog['note'] = note
+    dog['reward'] = reward
+    print_heroku('customer info')
+    print_heroku(customer)
+    print_heroku('dog info')
+    print_heroku(dog)
+    flex_json = create_flex_confirm_dog_test(customer, dog)
+    print_heroku(flex_json)
+    notify_flex(customer_id, 'โปรดยืนยันการแจ้งหาย', flex_json)
+    return create_response('ok', 200, 'successfully push get flex dog info')
+
+def create_flex_confirm_dog_test(customer, dog):
+    image = dog['image']
+    dog_name = dog['name']
+    breed = dog['breed']
+    address = dog['address']
+    reward = dog['reward']
+    note = dog['note']
+    phone = customer['phone']
+    owner_name = customer['owner_name']
+    dog_age = convert_month_to_year_month_in_thai(dog['age'])
+    dog_gender = dog['gender']
+    print_heroku(f'dog_age : {dog_age}')
+
+    flex = {
+        "type": "bubble",
+        "header": {
+            "backgroundColor": "#525B35",
+            "contents": [
+            {
+                "align": "start",
+                "flex": 1,
+                "gravity": "center",
+                "size": "lg",
+                "type": "image",
+                "url": "https://www.img.in.th/images/fa483e18975191b2aee90efdc4e89413.png"
+            },
+            {
+                "contents": [
+                {
+                    "type": "filler"
+                },
+                {
+                    "align": "center",
+                    "color": "#FFFFFF",
+                    "gravity": "center",
+                    "size": "xl",
+                    "text": dog_name,
+                    "type": "text",
+                    "weight": "bold",
+                    "wrap": True
+                },
+                {
+                    "type": "filler"
+                }
+                ],
+                "flex": 2,
+                "layout": "vertical",
+                "type": "box"
+            }
+            ],
+            "layout": "horizontal",
+            "type": "box"
+        },
+        "body": {
+            "contents": [
+            {
+                "contents": [
+                {
+                    "aspectMode": "cover",
+                    "size": "full",
+                    "type": "image",
+                    "url": image,
+                },
+                {
+                    "margin": "xl",
+                    "type": "separator"
+                }
+                ],
+                "cornerRadius": "sm",
+                "layout": "vertical",
+                "type": "box"
+            },
+            {
+                "contents": [
+                {
+                    "contents": [
+                    {
+                        "flex": 3,
+                        "size": "sm",
+                        "text": "ชื่อ:",
+                        "type": "text"
+                    },
+                    {
+                        "flex": 12,
+                        "size": "sm",
+                        "text": dog_name,
+                        "type": "text",
+                        "weight": "bold"
+                    },
+                    {
+                        "action": {
+                        "label": "กำลังทำ function นี้",
+                        "text": "กำลังทำ function นี้",
+                        "type": "message"
+                        },
+                        "align": "end",
+                        "flex": 2,
+                        "size": "xs",
+                        "text": "แก้ไข",
+                        "type": "text"
+                    }
+                    ],
+                    "layout": "horizontal",
+                    "type": "box"
+                },
+                {
+                    "contents": [
+                    {
+                        "flex": 3,
+                        "size": "sm",
+                        "text": "พันธุ์:",
+                        "type": "text"
+                    },
+                    {
+                        "flex": 12,
+                        "size": "sm",
+                        "text": breed,
+                        "type": "text",
+                        "weight": "bold"
+                    },
+                    {
+                        "action": {
+                        "label": "กำลังทำ function นี้",
+                        "text": "กำลังทำ function นี้",
+                        "type": "message"
+                        },
+                        "align": "end",
+                        "flex": 2,
+                        "size": "xs",
+                        "text": "แก้ไข",
+                        "type": "text"
+                    }
+                    ],
+                    "layout": "horizontal",
+                    "type": "box"
+                },
+                {
+                    "contents": [
+                    {
+                        "flex": 6,
+                        "size": "sm",
+                        "text": "อายุ (ปี-เดือน):",
+                        "type": "text"
+                    },
+                    {
+                        "align": "start",
+                        "flex": 8,
+                        "size": "sm",
+                        "text": dog_age,
+                        "type": "text",
+                        "weight": "bold"
+                    },
+                    {
+                        "action": {
+                        "label": "กำลังทำ function นี้",
+                        "text": "กำลังทำ function นี้",
+                        "type": "message"
+                        },
+                        "align": "end",
+                        "flex": 2,
+                        "size": "xs",
+                        "text": "แก้ไข",
+                        "type": "text"
+                    }
+                    ],
+                    "layout": "horizontal",
+                    "type": "box"
+                },
+                {
+                    "contents": [
+                    {
+                        "flex": 2,
+                        "size": "sm",
+                        "text": "เพศ:",
+                        "type": "text"
+                    },
+                    {
+                        "align": "start",
+                        "flex": 12,
+                        "size": "sm",
+                        "text": dog_gender,
+                        "type": "text",
+                        "weight": "bold"
+                    },
+                    {
+                        "action": {
+                        "label": "กำลังทำ function นี้",
+                        "text": "กำลังทำ function นี้",
+                        "type": "message"
+                        },
+                        "align": "end",
+                        "flex": 2,
+                        "size": "xs",
+                        "text": "แก้ไข",
+                        "type": "text"
+                    }
+                    ],
+                    "layout": "horizontal",
+                    "type": "box"
+                }
+                ],
+                "layout": "vertical",
+                "type": "box"
+            },
+            {
+                "margin": "xxl",
+                "type": "separator"
+            },
+            {
+                "contents": [
+                {
+                    "contents": [
+                    {
+                        "align": "start",
+                        "flex": 3,
+                        "size": "sm",
+                        "text": "เจ้าของ:",
+                        "type": "text"
+                    },
+                    {
+                        "flex": 10,
+                        "size": "sm",
+                        "text": owner_name,
+                        "type": "text",
+                        "weight": "bold",
+                        "wrap": True
+                    },
+                    {
+                        "action": {
+                        "label": "กำลังทำ function นี้",
+                        "text": "กำลังทำ function นี้",
+                        "type": "message"
+                        },
+                        "align": "end",
+                        "flex": 2,
+                        "size": "xs",
+                        "text": "แก้ไข",
+                        "type": "text"
+                    }
+                    ],
+                    "layout": "horizontal",
+                    "type": "box"
+                },
+                {
+                    "contents": [
+                    {
+                        "flex": 3,
+                        "size": "sm",
+                        "text": "เบอร์ติดต่อ:",
+                        "type": "text"
+                    },
+                    {
+                        "flex": 6,
+                        "size": "sm",
+                        "text": phone,
+                        "type": "text",
+                        "weight": "bold"
+                    },
+                    {
+                        "action": {
+                        "label": "กำลังทำ function นี้",
+                        "text": "กำลังทำ function นี้",
+                        "type": "message"
+                        },
+                        "align": "end",
+                        "flex": 2,
+                        "size": "xs",
+                        "text": "แก้ไข",
+                        "type": "text"
+                    }
+                    ],
+                    "layout": "horizontal",
+                    "type": "box"
+                },
+                {
+                    "contents": [
+                    {
+                        "align": "start",
+                        "flex": 3,
+                        "size": "sm",
+                        "text": "รางวัล:",
+                        "type": "text"
+                    },
+                    {
+                        "flex": 12,
+                        "size": "sm",
+                        "text": reward,
+                        "type": "text",
+                        "weight": "bold",
+                        "wrap": True
+                    },
+                    {
+                        "action": {
+                        "label": "กำลังทำ function นี้",
+                        "text": "กำลังทำ function นี้",
+                        "type": "message"
+                        },
+                        "align": "end",
+                        "flex": 2,
+                        "size": "xs",
+                        "text": "แก้ไข",
+                        "type": "text"
+                    }
+                    ],
+                    "layout": "horizontal",
+                    "type": "box"
+                },
+                {
+                    "margin": "lg",
+                    "type": "separator"
+                },
+                {
+                    "contents": [
+                    {
+                        "align": "center",
+                        "flex": 3,
+                        "size": "sm",
+                        "text": "หายที่:",
+                        "type": "text"
+                    },
+                    {
+                        "size": "sm",
+                        "text": address,
+                        "type": "text",
+                        "wrap": True
+                    },
+                    {
+                        "action": {
+                        "label": "กำลังทำ function นี้",
+                        "text": "กำลังทำ function นี้",
+                        "type": "message"
+                        },
+                        "align": "center",
+                        "flex": 2,
+                        "size": "xs",
+                        "text": "แก้ไข",
+                        "type": "text"
+                    }
+                    ],
+                    "layout": "vertical",
+                    "margin": "lg",
+                    "type": "box"
+                },
+                {
+                    "type": "separator"
+                },
+                {
+                    "contents": [
+                    {
+                        "align": "center",
+                        "flex": 3,
+                        "size": "sm",
+                        "text": "ข้อความ:",
+                        "type": "text"
+                    },
+                    {
+                        "size": "sm",
+                        "text": note,
+                        "type": "text",
+                        "wrap": True
+                    },
+                    {
+                        "action": {
+                        "label": "กำลังทำ function นี้",
+                        "text": "กำลังทำ function นี้",
+                        "type": "message"
+                        },
+                        "align": "center",
+                        "flex": 2,
+                        "size": "xs",
+                        "text": "แก้ไข",
+                        "type": "text"
+                    }
+                    ],
+                    "layout": "vertical",
+                    "margin": "lg",
+                    "type": "box"
+                }
+                ],
+                "layout": "vertical",
+                "margin": "lg",
+                "type": "box"
+            }
+            ],
+            "layout": "vertical",
+            "type": "box"
+        },
+        "footer": {
+            "contents": [
+            {
+                "align": "center",
+                "color": "#FF0000",
+                "size": "xs",
+                "text": "ถ้าข้อมูลถูกต้องและต้องการแจ้งหาย กดปุ่มยืนยันแจ้งหาย",
+                "type": "text",
+                "weight": "bold",
+                "wrap": True
+            },
+            {
+                "action": {
+                "label": "ยืนยันแจ้งหาย",
+                "text": "ยืนยันแจ้งหาย",
+                "type": "message"
+                },
+                "color": "#525B35",
+                "style": "primary",
+                "type": "button"
+            },
+            {
+                "margin": "md",
+                "type": "separator"
+            },
+            {
+                "action": {
+                "label": "ยกเลิกการแจ้ง",
+                "text": "ยกเลิกการแจ้ง",
+                "type": "message"
+                },
+                "color": "#525B35",
+                "style": "primary",
+                "type": "button"
+            }
+            ],
+            "layout": "vertical",
+            "type": "box"
+        }
+    }
+    return flex
+
+def create_flex_confirm_dog(customer, dog):
+    image = dog['image']
+    dog_name = dog['name']
+    breed = dog['breed']
+    address = dog['address']
+    reward = dog['reward']
+    note = dog['note']
+    phone = customer['phone']
+    owner_name = customer['owner_name']
+    dog_age = convert_month_to_year_month_in_thai(dog['age'])
+    dog_gender = dog['gender']
+
+    flex = {
+        "type": "bubble",
+        "header": {
+            "backgroundColor": "#525B35",
+            "contents": [
+            {
+                "align": "start",
+                "flex": 1,
+                "gravity": "center",
+                "size": "lg",
+                "type": "image",
+                "url": "https://www.img.in.th/images/fa483e18975191b2aee90efdc4e89413.png"
+            },
+            {
+                "contents": [
+                {
+                    "type": "filler"
+                },
+                {
+                    "align": "center",
+                    "color": "#FFFFFF",
+                    "gravity": "center",
+                    "size": "xl",
+                    "text": f"{dog_name}",
+                    "type": "text",
+                    "weight": "bold",
+                    "wrap": True
+                },
+                {
+                    "type": "filler"
+                }
+                ],
+                "flex": 2,
+                "layout": "vertical",
+                "type": "box"
+            }
+            ],
+            "layout": "horizontal",
+            "type": "box"
+        },
+        "body": {
+            "contents": [
+            {
+                "contents": [
+                {
+                    "aspectMode": "cover",
+                    "size": "full",
+                    "type": "image",
+                    "url": f"{image}"
+                },
+                {
+                    "margin": "xl",
+                    "type": "separator"
+                }
+                ],
+                "cornerRadius": "sm",
+                "layout": "vertical",
+                "type": "box"
+            },
+            {
+                "contents": [
+                {
+                    "contents": [
+                    {
+                        "flex": 3,
+                        "size": "sm",
+                        "text": "ชื่อ:",
+                        "type": "text"
+                    },
+                    {
+                        "flex": 12,
+                        "size": "sm",
+                        "text": f"{dog_name}",
+                        "type": "text",
+                        "weight": "bold"
+                    },
+                    {
+                        "action": {
+                        "label": "กำลังทำ function นี้",
+                        "text": "กำลังทำ function นี้",
+                        "type": "message"
+                        },
+                        "align": "end",
+                        "flex": 2,
+                        "size": "xs",
+                        "text": "แก้ไข",
+                        "type": "text"
+                    }
+                    ],
+                    "layout": "horizontal",
+                    "type": "box"
+                },
+                {
+                    "contents": [
+                    {
+                        "flex": 3,
+                        "size": "sm",
+                        "text": "พันธุ์:",
+                        "type": "text"
+                    },
+                    {
+                        "flex": 12,
+                        "size": "sm",
+                        "text": f"{breed}",
+                        "type": "text",
+                        "weight": "bold"
+                    },
+                    {
+                        "action": {
+                        "label": "กำลังทำ function นี้",
+                        "text": "กำลังทำ function นี้",
+                        "type": "message"
+                        },
+                        "align": "end",
+                        "flex": 2,
+                        "size": "xs",
+                        "text": "แก้ไข",
+                        "type": "text"
+                    }
+                    ],
+                    "layout": "horizontal",
+                    "type": "box"
+                },
+                {
+                    "contents": [
+                    {
+                        "flex": 6,
+                        "size": "sm",
+                        "text": "อายุ (ปี-เดือน):",
+                        "type": "text"
+                    },
+                    {
+                        "align": "start",
+                        "flex": 8,
+                        "size": "sm",
+                        "text": f"{dog_age}",
+                        "type": "text",
+                        "weight": "bold"
+                    },
+                    {
+                        "action": {
+                        "label": "กำลังทำ function นี้",
+                        "text": "กำลังทำ function นี้",
+                        "type": "message"
+                        },
+                        "align": "end",
+                        "flex": 2,
+                        "size": "xs",
+                        "text": "แก้ไข",
+                        "type": "text"
+                    }
+                    ],
+                    "layout": "horizontal",
+                    "type": "box"
+                },
+                {
+                    "contents": [
+                    {
+                        "flex": 2,
+                        "size": "sm",
+                        "text": "เพศ:",
+                        "type": "text"
+                    },
+                    {
+                        "align": "start",
+                        "flex": 12,
+                        "size": "sm",
+                        "text": f"{dog_gender}",
+                        "type": "text",
+                        "weight": "bold"
+                    },
+                    {
+                        "action": {
+                        "label": "กำลังทำ function นี้",
+                        "text": "กำลังทำ function นี้",
+                        "type": "message"
+                        },
+                        "align": "end",
+                        "flex": 2,
+                        "size": "xs",
+                        "text": "แก้ไข",
+                        "type": "text"
+                    }
+                    ],
+                    "layout": "horizontal",
+                    "type": "box"
+                }
+                ],
+                "layout": "vertical",
+                "type": "box"
+            },
+            {
+                "margin": "xxl",
+                "type": "separator"
+            },
+            {
+                "contents": [
+                {
+                    "contents": [
+                    {
+                        "align": "start",
+                        "flex": 3,
+                        "size": "sm",
+                        "text": "เจ้าของ:",
+                        "type": "text"
+                    },
+                    {
+                        "flex": 10,
+                        "size": "sm",
+                        "text": f"{owner_name}",
+                        "type": "text",
+                        "weight": "bold",
+                        "wrap": True
+                    },
+                    {
+                        "action": {
+                        "label": "กำลังทำ function นี้",
+                        "text": "กำลังทำ function นี้",
+                        "type": "message"
+                        },
+                        "align": "end",
+                        "flex": 2,
+                        "size": "xs",
+                        "text": "แก้ไข",
+                        "type": "text"
+                    }
+                    ],
+                    "layout": "horizontal",
+                    "type": "box"
+                },
+                {
+                    "contents": [
+                    {
+                        "flex": 3,
+                        "size": "sm",
+                        "text": "เบอร์ติดต่อ:",
+                        "type": "text"
+                    },
+                    {
+                        "flex": 6,
+                        "size": "sm",
+                        "text": f"{phone}",
+                        "type": "text",
+                        "weight": "bold"
+                    },
+                    {
+                        "action": {
+                        "label": "กำลังทำ function นี้",
+                        "text": "กำลังทำ function นี้",
+                        "type": "message"
+                        },
+                        "align": "end",
+                        "flex": 2,
+                        "size": "xs",
+                        "text": "แก้ไข",
+                        "type": "text"
+                    }
+                    ],
+                    "layout": "horizontal",
+                    "type": "box"
+                },
+                {
+                    "contents": [
+                    {
+                        "align": "start",
+                        "flex": 3,
+                        "size": "sm",
+                        "text": "รางวัล:",
+                        "type": "text"
+                    },
+                    {
+                        "flex": 12,
+                        "size": "sm",
+                        "text": f"{reward}",
+                        "type": "text",
+                        "weight": "bold",
+                        "wrap": True
+                    },
+                    {
+                        "action": {
+                        "label": "กำลังทำ function นี้",
+                        "text": "กำลังทำ function นี้",
+                        "type": "message"
+                        },
+                        "align": "end",
+                        "flex": 2,
+                        "size": "xs",
+                        "text": "แก้ไข",
+                        "type": "text"
+                    }
+                    ],
+                    "layout": "horizontal",
+                    "type": "box"
+                },
+                {
+                    "margin": "lg",
+                    "type": "separator"
+                },
+                {
+                    "contents": [
+                    {
+                        "align": "center",
+                        "flex": 3,
+                        "size": "sm",
+                        "text": "หายที่:",
+                        "type": "text"
+                    },
+                    {
+                        "size": "sm",
+                        "text": f"{address}",
+                        "type": "text",
+                        "wrap": True
+                    },
+                    {
+                        "action": {
+                        "label": "กำลังทำ function นี้",
+                        "text": "กำลังทำ function นี้",
+                        "type": "message"
+                        },
+                        "align": "center",
+                        "flex": 2,
+                        "size": "xs",
+                        "text": "แก้ไข",
+                        "type": "text"
+                    }
+                    ],
+                    "layout": "vertical",
+                    "margin": "lg",
+                    "type": "box"
+                },
+                {
+                    "type": "separator"
+                },
+                {
+                    "contents": [
+                    {
+                        "align": "center",
+                        "flex": 3,
+                        "size": "sm",
+                        "text": "ข้อความ:",
+                        "type": "text"
+                    },
+                    {
+                        "size": "sm",
+                        "text": f"{note}",
+                        "type": "text",
+                        "wrap": True
+                    },
+                    {
+                        "action": {
+                        "label": "กำลังทำ function นี้",
+                        "text": "กำลังทำ function นี้",
+                        "type": "message"
+                        },
+                        "align": "center",
+                        "flex": 2,
+                        "size": "xs",
+                        "text": "แก้ไข",
+                        "type": "text"
+                    }
+                    ],
+                    "layout": "vertical",
+                    "margin": "lg",
+                    "type": "box"
+                }
+                ],
+                "layout": "vertical",
+                "margin": "lg",
+                "type": "box"
+            }
+            ],
+            "layout": "vertical",
+            "type": "box"
+        },
+        "footer": {
+            "contents": [
+            {
+                "align": "center",
+                "color": "#FF0000",
+                "size": "xs",
+                "text": "ถ้าข้อมูลถูกต้องและต้องการแจ้งหาย กดปุ่มยืนยันแจ้งหาย",
+                "type": "text",
+                "weight": "bold",
+                "wrap": True
+            },
+            {
+                "action": {
+                "label": "ยืนยันแจ้งหาย",
+                "text": "ยืนยันแจ้งหาย",
+                "type": "message"
+                },
+                "color": "#525B35",
+                "style": "primary",
+                "type": "button"
+            },
+            {
+                "margin": "md",
+                "type": "separator"
+            },
+            {
+                "action": {
+                "label": "ยกเลิกการแจ้ง",
+                "text": "ยกเลิกการแจ้ง",
+                "type": "message"
+                },
+                "color": "#525B35",
+                "style": "primary",
+                "type": "button"
+            }
+            ],
+            "layout": "vertical",
+            "type": "box"
+        }
+    }
+    return flex
 
 def create_flex(dogs):
     flex = {
@@ -498,11 +1413,12 @@ def lostpreregister_api():
     phone = None
     dog_id = None
     location = None
+    address = None
     lat = None
     long = None
     reward = None
     note = None
-
+    
 
     if request_data:
         if api_key.CUSTOMER_ID in request_data:
@@ -516,9 +1432,10 @@ def lostpreregister_api():
             return create_response('error', 400, f'{api_key.PHONE} was not found')
 
         if api_key.LOCATION in request_data:
-            lat = request_data[api_key.LOCATION]['lat']
-            long = request_data[api_key.LOCATION]['long']
-            location= firestore.GeoPoint(lat, long)            
+            lat = Decimal(request_data[api_key.LOCATION][api_key.LAT])
+            long = Decimal(request_data[api_key.LOCATION][api_key.LONG])
+            address = request_data[api_key.LOCATION][api_key.ADDRESS]
+            location= firestore.GeoPoint(lat, long)
         else:
             return create_response('error', 400, f'{api_key.LOCATION} was not found')
 
@@ -554,6 +1471,7 @@ def lostpreregister_api():
     
     dog['dog_id'] = dog_id
     dog['location'] = location
+    dog['address'] = address
     dog['reward'] = reward
     dog['note'] = note
     customer = {
@@ -584,18 +1502,21 @@ def lost_api():
     print_heroku('JSON')
     print_heroku(request_data)
     customer_id = None
-    owner_name = None
     display_name = None
+    owner_name = None
+    phone = None
     image = None
     dog_name = None
     dog_gender = None
     dog_age = None
     breed = None
+    location = None
+    address = None
     lat = None
     long = None
-    location = None
     reward = None
     note = None
+    
 
     if request_data:
         if api_key.CUSTOMER_ID in request_data:
@@ -648,8 +1569,9 @@ def lost_api():
             return create_response('error', 400, f'{api_key.BREED} was not found')
 
         if api_key.LOCATION in request_data:
-            lat = request_data[api_key.LOCATION]['lat']
-            long = request_data[api_key.LOCATION]['long']
+            lat = Decimal(request_data[api_key.LOCATION][api_key.LAT])
+            long = Decimal(request_data[api_key.LOCATION][api_key.LONG])
+            address = request_data[api_key.LOCATION][api_key.ADDRESS]
             location= firestore.GeoPoint(lat, long)            
         else:
             return create_response('error', 400, f'{api_key.LOCATION} was not found')
@@ -684,6 +1606,7 @@ def lost_api():
         'age': dog_age,
         'gender': dog_gender,
         'location': location,
+        'address': address,
         'reward': reward,
         'note': note,
     }
@@ -796,12 +1719,13 @@ def found_api():
     display_name = None
     founder_name = None
     image = None
+    location = None
+    address = None
     lat = None
     long = None
-    location = None
     phone = None
     note = None
-    input_breed = None
+    input_breed = None    
 
     if request_data:
         # this is for testing, we can remove after integrate with Prem code in order to label breed
@@ -837,8 +1761,9 @@ def found_api():
             return create_response('error', 400, f'{api_key.NOTE} was not found')
 
         if api_key.LOCATION in request_data:
-            lat = request_data[api_key.LOCATION]['lat']
-            long = request_data[api_key.LOCATION]['long']
+            lat = Decimal(request_data[api_key.LOCATION][api_key.LAT])
+            long = Decimal(request_data[api_key.LOCATION][api_key.LONG])
+            address = request_data[api_key.LOCATION][api_key.ADDRESS]
             location= firestore.GeoPoint(lat, long)            
         else:
             return create_response('error', 400, f'{api_key.LOCATION} was not found')
@@ -859,6 +1784,7 @@ def found_api():
         'breed': breed,
         'image': image,
         'location': location,
+        'address': address,
         'is_match': False,
         'datetime': datetime.now(),
         'note': note,
@@ -881,7 +1807,7 @@ def found_api():
 
 #TODO: PREM
 # need to return breed as English (not Thai)
-def predict_breed(image):
+def predict_breed(image_url):
     breeds = ['Beagle', 'Poodle', 'Siberian Husky', 'Pug', 'Pomeranian', 'Shih-tzu', 'Golden Retriever', 'Corgi', 'Chihuahua', 'Bangkaew']
     index = random.randint(0, 9)
     return breeds[index]
@@ -897,6 +1823,7 @@ def test_api():
     long = None
     location = None
     case = None
+    address = None
 
     if request_data:
         if api_key.IMAGE in request_data:
@@ -913,8 +1840,9 @@ def test_api():
             return create_response('error', 400, f'{api_key.BREED} was not found')
 
         if api_key.LOCATION in request_data:
-            lat = request_data[api_key.LOCATION]['lat']
-            long = request_data[api_key.LOCATION]['long']
+            lat = Decimal(request_data[api_key.LOCATION]['lat'])
+            long = Decimal(request_data[api_key.LOCATION]['long'])
+            address = request_data[api_key.LOCATION][api_key.ADDRESS]
             location= firestore.GeoPoint(lat, long)            
         else:
             return create_response('error', 400, f'{api_key.LOCATION} was not found')
@@ -928,6 +1856,7 @@ def test_api():
         'breed': breed,
         'image': image,
         'location': location,
+        'address': address,
     }
     collection_group = None
     if case == 'lost':
