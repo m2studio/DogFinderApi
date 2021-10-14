@@ -1718,11 +1718,12 @@ def predict_breed_api():
     if request_data:
         # this is for testing, we can remove after integrate with Prem code in order to label breed
         if 'image' in request_data:
-            input_breed = request_data['image']
+            image = request_data['image']
         else:
             return create_response('error', 400, f'image was not found')
 
-    breed = predict_breed(image)
+    print_heroku(f'image url : {image}')
+    breed = predict_breed(image) # PREM need to update the prediction code in this function
     return {'status': 'ok', 'breed': breed}, 200
 
 @app.route('/found', methods = ['POST'])
@@ -1823,6 +1824,10 @@ def found_api():
 #TODO: PREM
 # need to return breed as English (not Thai)
 def predict_breed(image_url):
+    # image_data = 1. download image fro a given url
+    # transformed_data = trasnform(image_data)
+    # predict(transformed_data)
+
     breeds = ['Beagle', 'Poodle', 'Siberian Husky', 'Pug', 'Pomeranian', 'Shih-tzu', 'Golden Retriever', 'Corgi', 'Chihuahua', 'Bangkaew']
     index = random.randint(0, 9)
     return breeds[index]
