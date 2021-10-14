@@ -1710,6 +1710,21 @@ def get_found_dogs_api():
     notify_flex(customer_id, f'รายการน้องหมาที่ใกล้เคียงกับ{dog_name}', flex)
     return create_response('ok', 200, f'successfully push list of found dogs to custoomer : {customer_id}')
 
+@app.route('/predict-breed', methods = ['POST'])
+def predict_breed_api():
+    request_data = request.get_json()
+    print_heroku('request JSON')
+    image = None
+    if request_data:
+        # this is for testing, we can remove after integrate with Prem code in order to label breed
+        if 'image' in request_data:
+            input_breed = request_data['image']
+        else:
+            return create_response('error', 400, f'image was not found')
+
+    breed = predict_breed(image)
+    return {'status': 'ok', 'breed': breed}, 200
+
 @app.route('/found', methods = ['POST'])
 def found_api():
     request_data = request.get_json()
