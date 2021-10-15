@@ -3,7 +3,7 @@ import os
 from flask import Flask, flash, request, render_template
 from datetime import datetime
 import pandas as pd
-import pickle
+import requests
 import random
 from decimal import Decimal
 import json 
@@ -17,6 +17,11 @@ from firebase_admin import firestore
 
 import api_key
 import firestore_collection
+
+# Machine Learning module
+from tensorflow import keras
+import numpy as np
+from tensorflow.keras.preprocessing.image import load_img
 
 from linebot import (
     LineBotApi
@@ -1824,13 +1829,44 @@ def found_api():
 #TODO: PREM
 # need to return breed as English (not Thai)
 def predict_breed(image_url):
-    # image_data = 1. download image fro a given url
-    # transformed_data = trasnform(image_data)
-    # predict(transformed_data)
+    # breeds = ['Beagle', 'Poodle', 'Siberian Husky', 'Pug', 'Pomeranian', 'Shih-tzu', 'Golden Retriever', 'Corgi', 'Chihuahua', 'Bangkaew']
+    # index = random.randint(0, 9)
+    # return breeds[index]
+    img_data = requests.get(image_url).content
+    current_time = datetime.now().strftime('%d-%b-%YT%H-%M-%S') # 1-Sep-2021T21-52-19
+    index = random.randint(0, 99)
+    image_path = './images/tmp_' + current_time + '_' + str(index) + '.jpg'
+    with open(image_path, 'wb') as handler:
+        handler.write(img_data)
 
-    breeds = ['Beagle', 'Poodle', 'Siberian Husky', 'Pug', 'Pomeranian', 'Shih-tzu', 'Golden Retriever', 'Corgi', 'Chihuahua', 'Bangkaew']
-    index = random.randint(0, 9)
-    return breeds[index]
+    model = keras.models.load_model('PET_MobileNetV2_FINAL_FULL')
+    image = load_img(image_path, target_size=(224, 224))
+    # delete tmp image
+    os.remove(image_path)
+
+    x = np.array(image)
+    x = x.reshape(1, 224, 224, 3)
+    output = model.predict(x)
+    output_idx = np.argmax(output)
+    breed = ["Beagle",
+              "Shiba",
+              "German_shepherd",
+              "Poodle",
+              "Pug",
+              "Siberian_Husky",
+              "Shih-tzu",
+              "Corgi",
+              "Bulldog",
+              "Bangkaew",
+              "Chihuahua",
+              "Pomeranian",
+              "Golden_Retriever",
+              "Labrador_Retrievre",
+              "Jack_Russell_Terrier",
+              "Basset_Hound",
+              "Miniature_Pinscher",
+              "Thai_Ridgeback"]
+    return breed[output_idx]
 
 # for debugging/testing code purpose
 @app.route('/test', methods = ['POST'])
@@ -2001,25 +2037,25 @@ def swap_dict(old_dict):
 def map_breed(breed, reverse=False):
     breeds = {
         'ชิวาว่า': 'Chihuahua',
-        'โกลเด้น': 'Golden Retriever',
+        'โกลเด้น': 'Golden_Retriever',
         'บางแก้ว': 'Bangkaew',
         'ชิสุ': 'Shih-tzu',
         'ชิบะ': 'Shiba',
-        'ไซบีเรียนฮัสกี้': 'Siberian Husky',
+        'ไซบีเรียนฮัสกี้': 'Siberian_Husky',
         'ปั๊ก': 'Pug',
         'คอร์กี้': 'Corgi',
-        'เฟรนช์บูลด๊อก': 'French Bulldog',
+        'เฟรนช์บูลด๊อก': 'French_Bulldog',
         'ปอมเมอเรเนียน': 'Pomeranian',
-        'ไทยหลังอาน': 'Thai Ridgeback',
-        'ลาบราดอร์': 'Labrador Retriever',
+        'ไทยหลังอาน': 'Thai_Ridgeback',
+        'ลาบราดอร์': 'Labrador_Retriever',
         'พุดเดิ้ล': 'Poodle',
         'บีเกิ้ล': 'Beagle',
-        'เยอรมันเชพเพิร์ด (อัลเซเชี่ยน)': 'German shepherd',
+        'เยอรมันเชพเพิร์ด (อัลเซเชี่ยน)': 'German_shepherd',
         'บูลด็อก': 'Bulldog',
-        'แจ็กรัสเซลล์': 'Jack Russell Terrier',
-        'บาสเซ็ตฮาวด์': 'Basset Hound',
-        'มินิเอเจอร์พินเชอร์': 'Miniature Pinscher',
-        'ชเนาเซอร์': 'Miniature Schnauzer',
+        'แจ็กรัสเซลล์': 'Jack_Russell_Terrier',
+        'บาสเซ็ตฮาวด์': 'Basset_Hound',
+        'มินิเอเจอร์พินเชอร์': 'Miniature_Pinscher',
+        'ชเนาเซอร์': 'Miniature_Schnauzer',
     }
     if reverse:
         breeds = swap_dict(breeds)
